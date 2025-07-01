@@ -1,0 +1,17 @@
+{
+    "ip_address": "127.0.0.1",
+    "port": 5001,
+    "csv_output_path": "csv",
+    "model_output_path": "federated_model_weights",
+    "early_stop_patience": 5,
+    "weighted_aggregation": true,
+    "MIN_NUM_WORKERS": 10,
+    "model_name": "ResNet50",
+    "device": "gpu",
+    "global_epoch": 5,
+    "local_epoch": 5,
+    "num_clients": 10,
+    "models_percentage": 0.5,
+    "learning_rate": 1e-07,
+    "batch_size": 32
+}
