@@ -1,17 +1,17 @@
 {
     "ip_address": "127.0.0.1",
-    "port": 5001,
+    "port": 5000,
     "csv_output_path": "csv",
     "model_output_path": "federated_model_weights",
-    "early_stop_patience": 5,
+    "early_stop_patience": 3,
     "weighted_aggregation": true,
-    "MIN_NUM_WORKERS": 10,
-    "model_name": "ResNet50",
+    "model_name": "ResNet18",
     "device": "gpu",
-    "global_epoch": 5,
-    "local_epoch": 5,
-    "num_clients": 10,
-    "models_percentage": 0.5,
-    "learning_rate": 1e-07,
-    "batch_size": 32
+    "global_epoch": 2,
+    "local_epoch": 1,
+    "num_clients": 4,
+    "MIN_NUM_WORKERS": 4,
+    "models_percentage": 1,
+    "learning_rate": 1e-05,
+    "batch_size": 16
 }

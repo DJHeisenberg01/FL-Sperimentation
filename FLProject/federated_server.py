@@ -1,14 +1,14 @@
 import logging
 import random
+
 import time
 from flask import Flask, request, render_template
 from flask_socketio import *
 from flask_socketio import SocketIO
 import json
-import os
-import sys
 from utilities import obj_to_pickle_string, pickle_string_to_obj
 from aggregator import Aggregator
+import os
 
 CONFIG_FILE = 'cfg/config.json'
 
@@ -25,9 +25,11 @@ class FederatedServer(object):
         Load with json parameters from a config file
         Params: ip_address, port, model_name, log_filename, global_epoch, models_percentage
                 local_epochs, learning_rate, batch_size
+
         '''
         self.config = load_json(config_file)
 
+        # Federated Variables
         self.MIN_NUM_WORKERS = self.config['MIN_NUM_WORKERS']
         self.NUM_CLIENTS_CONTACTED_PER_ROUND = 0
         self.registered_clients = set()
@@ -42,7 +44,7 @@ class FederatedServer(object):
         self.logger = logging.getLogger("Federated-Server")
         self.set_logger()
         self.logger.info("Config Params: " + str(self.config))
-        #
+
         self.aggregator = Aggregator(self.config, self.logger)
 
         self.early_stop_tolerance = 0
@@ -65,14 +67,9 @@ class FederatedServer(object):
                      "Learning Rate: " + str(self.config['learning_rate']),
                      "Batch Size: " + str(self.config['batch_size']),
                      "Local Epochs: " + str(self.config['local_epoch'])]
-            return render_template('stats.html', tables=[df.to_html(classes='data')],
-                                   texts=texts, images=images)
+            return render_template('stats.html', tables=[df.to_html(classes='data')], texts=texts, images=images)
 
     def check_client_resource(self):
-        """
-        A random number of clients is selected between the number of total clients and registered clients
-        from which to request availability.
-        """
         self.client_resource = {}
         client_sids_selected = random.sample(list(self.registered_clients), int(self.NUM_CLIENTS_CONTACTED_PER_ROUND))
         self.logger.info('Sending weights to selected clients: ' + str(client_sids_selected))
@@ -84,10 +81,6 @@ class FederatedServer(object):
         # Note: we assume that during training the #workers will be >= MIN_NUM_WORKERS
 
     def train_next_round(self, client_sids_selected):
-        """
-        Selected clients are prompted for a model update. They are sent training parameters such as epochs,
-        batch_size, learning_rate, round_number and current_weights.
-        """
         self.current_round += 1
         # buffers all client updates
         self.current_round_client_updates = []
@@ -105,9 +98,6 @@ class FederatedServer(object):
             self.logger.info("Sent the model to {}".format(rid))
 
     def stop_and_eval(self):
-        """
-        The model is sent to clients for validation and they are notified whether or not it has reached a stopped state.
-        """
         current_weights = obj_to_pickle_string(self.aggregator.current_weights)
         self.eval_client_updates = []
         for rid in self.registered_clients:
@@ -126,14 +116,11 @@ class FederatedServer(object):
         os.makedirs(log_dir, exist_ok=True)
         fh = logging.FileHandler(os.path.join(log_dir, '{}.log'.format(timestr)))
         fh.setLevel(logging.INFO)
-        # create console handler with a higher log level
         ch = logging.StreamHandler()
         ch.setLevel(logging.WARN)
-        # create formatter and add it to the handlers
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         fh.setFormatter(formatter)
         ch.setFormatter(formatter)
-        # add the handlers to the logger
         self.logger.addHandler(fh)
         self.logger.addHandler(ch)
 
@@ -161,20 +148,11 @@ class FederatedServer(object):
 
         @self.socketio.on('client_wake_up')
         def handle_wake_up():
-            """
-            A wake-up signal is received from the various clients. The server initializes the
-            clients for each signal received.
-            """
             self.logger.info("Sending client wake_up to " + str(request.sid))
             emit('init')
 
         @self.socketio.on('client_ready')
         def handle_client_ready():
-            """
-            All clients ready for new training are reported. The ready clients are added to the clients
-            registered by the server. When the threshold of ready clients is reached, an initial training
-            of the model is started by exploiting some of the clients.
-            """
             self.logger.info("The client " + str(request.sid) + " is ready for training")
             self.registered_clients.add(request.sid)
             self.refresh_client_round()
@@ -191,11 +169,6 @@ class FederatedServer(object):
 
         @self.socketio.on('check_client_resource_done')
         def handle_check_client_resource_done(data):
-            """
-            Each client is initialized in a dict with the load amount. If there are enough initialized clients,
-            part of them are selected based on the total load amount available. If the percentage of available
-            clients exceeds a certain threshold, training is started for the next round.
-            """
             if data['round_number'] == self.current_round:
                 self.client_resource[request.sid] = data['load_rate']
                 if len(self.client_resource) == self.NUM_CLIENTS_CONTACTED_PER_ROUND:
@@ -222,11 +195,6 @@ class FederatedServer(object):
 
         @self.socketio.on('client_update')
         def handle_client_update(data):
-            """
-            The server receives the updates processed by the clients. Model results are aggregated. The learning
-            stop for a given threshold reached or number of epochs is evaluated, the model is evaluated against
-            the others received, and is sent back to the clients for validation.
-            """
             self.logger.info("received client update of bytes: {}".format(sys.getsizeof(data)))
             self.logger.info("handle client_update {}".format(request.sid))
 
@@ -243,12 +211,13 @@ class FederatedServer(object):
 
                     self.logger.info("=== training ===")
                     self.logger.info("aggr_train_loss {}".format(aggr_train_loss))
-
                     # TODO CONDIZIONE DI STOP APPRENDIMENTO PER SOGLIA
 
                     if self.current_round >= self.config['global_epoch'] - 1:
                         self.logger.info("Reached the Maximum number of global epochs, the process is stopping..")
                         print("FINISHING FEDERATED PROCESS...")
+                        obj_to_pickle_string(self.aggregator.current_weights, save=True,
+                                                               file_path="weights.pkl")
                         self.STOP = True
 
                     self.test_on_selected()
@@ -257,11 +226,6 @@ class FederatedServer(object):
 
         @self.socketio.on('client_eval')
         def handle_client_eval(data):
-            """
-            The different validations are received from the server. The results from all clients are awaited, the
-            weights are aggregated, the results modified if better than the previous ones, and it is considered
-            whether to stop training or start a new iteration.
-            """
             if self.eval_client_updates is None:
                 return
             self.logger.info("handle client_eval {}".format(request.sid))
@@ -270,8 +234,7 @@ class FederatedServer(object):
             if len(self.eval_client_updates) == len(self.registered_clients):  # self.NUM_CLIENTS_CONTACTED_PER_ROUND:
 
                 if self.config['weighted_aggregation']:
-                    test_loss, test_f1, test_acc, test_prec, test_recall = (
-                        self.aggregator.aggregate_evaluation_metrics_weighted(
+                    test_loss, test_f1, test_acc, test_prec, test_recall = self.aggregator.aggregate_evaluation_metrics_weighted(
                         [update['test_loss'] for update in self.eval_client_updates],
                         [update['test_f1'] for update in self.eval_client_updates],
                         [update['test_acc'] for update in self.eval_client_updates],
@@ -279,7 +242,7 @@ class FederatedServer(object):
                         [update['test_recall'] for update in self.eval_client_updates],
                         [update['test_size'] for update in self.eval_client_updates],
                         self.current_round,
-                    ))
+                    )
                 else:
                     test_loss, test_f1, test_acc, test_prec, test_recall = self.aggregator.aggregate_evaluation_metrics(
                         [update['test_loss'] for update in self.eval_client_updates],

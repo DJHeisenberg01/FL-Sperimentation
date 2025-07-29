@@ -8,15 +8,13 @@ from utilities import obj_to_pickle_string, pickle_string_to_obj
 
 CONFIG_FILE = 'cfg/config.json'
 
-
 def load_json(filename):
     with open(filename) as f:
         return json.load(f)
 
-
 class FederatedClient(object):
 
-    def __init__(self, config_file, dataset_path, client_id):
+    def __init__(self, config_file, dataset_path):
         '''
         Load with json parameters from a config file
         Params: ip_address, port, model_name, log_filename, global_epoch, models_percentage
@@ -25,7 +23,6 @@ class FederatedClient(object):
         self.local_model = None
         self.config = load_json(config_file)
         self.dataset_path = dataset_path
-        self.client_id = client_id
 
         # Set The Logger
         self.logger = logging.getLogger("Federated-Client")
@@ -51,9 +48,7 @@ class FederatedClient(object):
         ch = logging.StreamHandler()
         ch.setLevel(logging.WARN)
         # create formatter and add it to the handlers
-        formatter = logging.Formatter(
-            f'%(asctime)s - %(name)s - %(levelname)s - ClientID-{self.client_id} - %(message)s'
-        )
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         fh.setFormatter(formatter)
         ch.setFormatter(formatter)
         # add the handlers to the logger
@@ -61,9 +56,6 @@ class FederatedClient(object):
         self.logger.addHandler(ch)
 
     def on_init(self):
-        """
-        The neural network is initialized and the server is notified that the client is ready for new training
-        """
         self.logger.info('Received on init from server')
         self.local_model = ConvolutionalNet(self.dataset_path, self.config['model_name'], self.config['device'])
         self.logger.info("Local Model Initialized!")
@@ -86,10 +78,6 @@ class FederatedClient(object):
             self.logger.info('reconnect')
 
         def on_request_update(*args):
-            """
-            An update to the client is requested. The client loads the received model, trains it on the available data,
-            and returns the obtained results such as training statistics and weights to the server.
-            """
             req = args[0]
             self.logger.info("update requested")
 
@@ -135,10 +123,6 @@ class FederatedClient(object):
             self.logger.info("Sent the Trained model and Metrics to the server")
 
         def on_stop_and_eval(*args):
-            """
-            Through this function, the client receives the model to be validated, validates it, and returns
-            the validation result to the server
-            """
             self.logger.info("Received aggregated model from server to evaluate")
             req = args[0]
             cur_time = time.time()
@@ -164,9 +148,6 @@ class FederatedClient(object):
                 exit(0)
 
         def on_check_client_resource(*args):
-            """
-            The client reports the current training round and the amount of load to the server.
-            """
             req = args[0]
             self.logger.info("check client resource.")
             load_average = 0.15

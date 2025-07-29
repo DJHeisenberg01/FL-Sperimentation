@@ -12,7 +12,8 @@ class DatasetSplitterClients:
         self.IMAGES_PATH = IMAGES_PATH
         self.num_clients = num_clients
         os.makedirs(self.CLIENTS_PATHS, exist_ok=True)
-        self.df = pd.read_csv(self.IMAGES_PATH + "\\roi_annotation.csv")
+        data_path = os.path.join(self.IMAGES_PATH, 'roi_annotation.csv')
+        self.df = pd.read_csv(data_path)
 
     def save_images(self, indexes, client_path, dir_name):
         for index in indexes:

@@ -3,7 +3,6 @@ import codecs
 import copy
 import torch
 
-
 def weights_average_function(weights):
     w_avg = copy.deepcopy(weights[0])
     for key in w_avg.keys():
@@ -13,17 +12,19 @@ def weights_average_function(weights):
     return w_avg
 
 
-def obj_to_pickle_string(x, file_path=None):
-    if file_path is not None:
-        # print("save model to file")
-        output = open(file_path, 'wb')
-        pickle.dump(x, output)
+def obj_to_pickle_string(x, file_path=None, save=False):
+    if save and file_path is not None:
+        with open(file_path, 'wb') as output:
+            pickle.dump(x, output)
         return file_path
     else:
-        # print("turn model to byte")
-        x = codecs.encode(pickle.dumps(x), "base64").decode()
-        return x
+        encoded = codecs.encode(pickle.dumps(x), "base64").decode()
+        return encoded
 
+def pickle_file_to_obj(file_path):
+    with open(file_path, 'rb') as f:
+        obj = pickle.load(f)
+    return obj
 
 def pickle_string_to_obj(s):
     if ".pkl" in s:

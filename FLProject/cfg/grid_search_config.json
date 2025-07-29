@@ -2,16 +2,17 @@
   "ip_address": "127.0.0.1",
   "port": 5001,
   "csv_output_path": "csv",
-  "config_file" : "cfg/config_1.json",
+  "config_file" : "./cfg/config_1.json",
   "splitting_dir" : "dataset/Clients_1",
   "model_output_path": "federated_model_weights",
   "early_stop_patience" : 3,
   "weighted_aggregation": true,
-  "model_name": ["ResNext50"],
-  "global_epoch": [5, 10],
-  "local_epoch": [1, 2],
-  "num_clients": [4],
+
+  "model_name": ["ResNet18"],
+  "global_epoch": [5, 10, 15, 20, 30],
+  "local_epoch": [1, 2, 3],
+  "num_clients": [4, 8, 10],
   "models_percentage": [0.5, 1],
-  "learning_rate": [0.0000001, 0.000000001],
+  "learning_rate": [0.01, 0.001, 0.0001, 0.00001, 0.000001,0.0000001,0.00000001, 0.000000001],
   "batch_size": [16, 32]
 }

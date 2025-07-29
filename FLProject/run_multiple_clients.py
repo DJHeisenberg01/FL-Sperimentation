@@ -14,8 +14,10 @@ def load_json(filename):
     with open(filename) as f:
         return json.load(f)
 
-def start_client(config_file, dataset_path, client_id):
-    FederatedClient(config_file, dataset_path, client_id)
+
+def start_client(config_file, dataset_path):
+    FederatedClient(config_file, dataset_path)
+
 
 def main(config_file=CONFIG_FILE, splitting_dir=CLIENTS_PATHS):
     num_clients = load_json(config_file)['num_clients']
@@ -26,9 +28,8 @@ def main(config_file=CONFIG_FILE, splitting_dir=CLIENTS_PATHS):
 
     threads = []
     for i in range(num_clients):
-        print(f"Starting client {i} of {num_clients}")
         dataset_path = os.path.join(splitting_dir, 'client_' + str(i))
-        thread = threading.Thread(target=start_client, args=(config_file, dataset_path, i))
+        thread = threading.Thread(target=start_client, args=(config_file, dataset_path))
         thread.start()
         time.sleep(5)
         threads.append(thread)

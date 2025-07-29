@@ -40,15 +40,18 @@ class Aggregator:
         self.best_acc = 0
         self.best_prec = 0
         self.best_recall = 0
+
         self.best_round_test = -1
         self.best_f1_test = 0
         self.best_acc_test = 0
         self.best_prec_test = 0
         self.best_recall_test = 0
+
         self.training_start_time = int(round(time.time()))
 
     def get_init_parameters(self):
-        model = ConvolutionalNet("", self.model_name, 'gpu')
+        print(self.config['device'])
+        model = ConvolutionalNet("", self.model_name, self.config['device'])
         parameters = model.get_weight()
         self.logger.info("parameters loaded ... delete the model")
         del model
