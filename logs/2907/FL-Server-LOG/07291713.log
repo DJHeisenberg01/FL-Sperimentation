@@ -1,2 +1,0 @@
-2025-07-29 17:13:57,013 - Federated-Server - INFO - Config Params: {'ip_address': '127.0.0.1', 'port': 5001, 'csv_output_path': 'csv', 'model_output_path': 'federated_model_weights', 'early_stop_patience': 3, 'weighted_aggregation': True, 'device': 'gpu', 'model_name': 'ResNet18', 'global_epoch': 5, 'local_epoch': 1, 'num_clients': 4, 'models_percentage': 0.5, 'learning_rate': 0.01, 'batch_size': 16, 'MIN_NUM_WORKERS': 4}
-2025-07-29 17:13:57,595 - Federated-Server - INFO - parameters loaded ... delete the model

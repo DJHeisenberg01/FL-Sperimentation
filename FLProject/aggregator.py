@@ -5,6 +5,7 @@ from PIL import Image
 from matplotlib import pyplot as plt
 
 from conv_models.convolutional_net import ConvolutionalNet
+from fl_algorithms import get_fl_algorithm
 import os
 
 
@@ -15,10 +16,14 @@ class Aggregator:
         self.config = config
         self.logger = logger
         self.model_name = self.config['model_name']
-
+        
         self.current_weights = self.get_init_parameters()
+        
+        # Inizializza algoritmo di FL
+        algorithm_name = self.config.get('fl_algorithm', 'fedavg')  # Default FedAvg se non specificato
+        self.fl_algorithm = get_fl_algorithm(algorithm_name, config, self.current_weights)
 
-        # for stats
+        # stats
         self.train_losses = []
         self.avg_test_losses = []
         self.avg_test_f1 = []
@@ -29,7 +34,7 @@ class Aggregator:
 
         self.map_metric = {}
 
-        # for convergence check
+        # check convergenza
         self.prev_test_loss = None
         self.best_loss = None
         self.best_weight = None
@@ -58,38 +63,25 @@ class Aggregator:
         return parameters
 
     def update_weights_weighted(self, client_weights, client_sizes):
-        total_size = np.sum(client_sizes)
-        if not isinstance(client_weights[0], str):
-            new_weights = [np.zeros(param.shape) for param in client_weights[0]]
-        else:
-            new_weights = [np.zeros(param.shape) for param in client_weights[1]]
         try:
-            for c in range(len(client_weights)):
-                for i in range(len(new_weights)):
-                    if isinstance(client_weights[c][i], str):
-                        total_size -= c
-                        break
-                    new_weights[i] += (client_weights[c][i] * client_sizes[c])
-
-            for i in range(len(new_weights)):
-                new_weights[i] = new_weights[i] / total_size
-        except:
-            self.logger.warn(type(client_sizes[c]))
-            self.logger.warn(type(total_size))
-            self.logger.warn(type(client_weights[c][i]))
-        self.current_weights = new_weights
+            # Aggrega i pesi utilizzando l'algoritmo di FL
+            new_weights = self.fl_algorithm.aggregate_weights(client_weights, client_sizes)
+            # Aggiorna sia i pesi dell'aggregatore che quelli dell'algoritmo di FL
+            self.current_weights = new_weights
+            self.fl_algorithm.update_current_weights(new_weights)
+        except Exception as e:
+            self.logger.warn(f"Errore durante l'aggregazione dei pesi: {str(e)}")
+            self.logger.warn(f"Client sizes: {type(client_sizes)}")
+            self.logger.warn(f"Client weights: {type(client_weights)}")
 
     def update_weights(self, client_weights):
-        total_size = len(client_weights)
-        new_weights = [np.zeros(param.shape) for param in client_weights[0]]
-        for c in range(len(client_weights)):
-            for i in range(len(new_weights)):
-                new_weights[i] += (client_weights[c][i] / total_size)
+        new_weights = self.fl_algorithm.aggregate_weights(client_weights)
         self.current_weights = new_weights
+        self.fl_algorithm.update_current_weights(new_weights)
 
     def aggregate_metrics(self, client_losses, client_f1, client_acc, client_prec, client_recall):
         total_size = len(client_losses)
-        # weighted sum
+        # somma pesata
         aggr_loss = sum(client_losses[i] / total_size
                         for i in range(len(client_losses)))
         aggr_f1 = sum(client_f1[i] / total_size
@@ -105,7 +97,7 @@ class Aggregator:
     def aggregate_train_loss(self, client_losses, cur_round):
         cur_time = int(round(time.time())) - self.training_start_time
         total_size = len(client_losses)
-        # weighted sum
+        # somma pesata
         aggr_loss = sum(client_losses[i] / total_size
                         for i in range(len(client_losses)))
         self.train_losses += [[cur_round, cur_time, aggr_loss]]
@@ -115,7 +107,7 @@ class Aggregator:
     def aggregate_train_loss_weights(self, client_losses, client_sizes, cur_round):
         cur_time = int(round(time.time())) - self.training_start_time
         total_size = sum(client_sizes)
-        # weighted sum
+        # somma pesata
         aggr_loss = sum(client_losses[i] / total_size * client_sizes[i]
                         for i in range(len(client_sizes)))
         self.train_losses += [[cur_round, cur_time, aggr_loss]]
@@ -152,7 +144,7 @@ class Aggregator:
     def aggregate_metrics_weighted(self, client_losses, client_f1, client_acc, client_prec, client_recall,
                                    client_sizes):
         total_size = sum(client_sizes)
-        # weighted sum
+        # somma pesata
         aggr_loss = sum(client_losses[i] / total_size * client_sizes[i]
                         for i in range(len(client_sizes)))
         aggr_f1 = sum(client_f1[i] / total_size * client_sizes[i]
@@ -218,7 +210,7 @@ class Aggregator:
     def save_df(self, config):
         datestr = time.strftime('%d%m')
         timestr = time.strftime('%m%d%H%M')
-        # Df of The Federated Training
+        # DataFrame del Federated Training
         df = pd.DataFrame(self.map_metric)
         output_path = self.config['csv_output_path']
         actual_path = os.path.dirname(os.path.abspath(__file__))
@@ -228,25 +220,47 @@ class Aggregator:
         save_path = save_path + "\\" + str(timestr) + '_federated_metrics.csv'
         df.to_csv(save_path)
 
-        # Save the Model Generated by the Federated Training
+        # Salva il modello generato dal Federated Training
         model_path = ""
         # model_path = self.save_model() # TODO RIATTIAVRE SALVATAGGIO MODELLLO DOPO GRID SEARCH
 
-        # Save the Training Parameter to a Pandas DataFrame
-        parameter_map = {'model_name': self.config['model_name'], 'global_epoch': self.config['global_epoch'],
-                         'models_percentage': self.config['models_percentage'],
-                         'MIN_NUM_WORKERS': self.config['MIN_NUM_WORKERS'], 'local_epoch': self.config['local_epoch'],
-                         'batch_size': self.config['batch_size'], 'learning_rate': self.config['learning_rate'],
-                         'best_epoch': self.best_round, 'best_f1': self.best_f1, 'best_acc': self.best_acc,
-                         'best_prec': self.best_prec, 'best_recall': self.best_recall, 'best_loss': self.best_loss,
+        # Salva i parametri di addestramento in un DataFrame
+        parameter_map = {
+            # Parametri del modello e di addestramento
+            'model_name': self.config['model_name'],
+            'global_epoch': self.config['global_epoch'],
+            'models_percentage': self.config['models_percentage'],
+            'MIN_NUM_WORKERS': self.config['MIN_NUM_WORKERS'],
+            'local_epoch': self.config['local_epoch'],
+            'batch_size': self.config['batch_size'],
+            'learning_rate': self.config['learning_rate'],
 
-                         'best_f1_test': self.best_f1_test, 'best_acc_test': self.best_acc_test,
-                         'best_recall_test': self.best_recall_test, 'best_precision_test': self.best_prec_test,
-                         'best_round_test': self.best_round_test,
+            # Parametri dell'algoritmo FL
+            'fl_algorithm': self.config.get('fl_algorithm', 'fedavg'),
+            'proximal_term': self.config.get('proximal_term', None) if self.config.get('fl_algorithm') == 'fedprox' else None,
+            'beta1': self.config.get('beta1', None) if self.config.get('fl_algorithm') in ['fedyogi', 'fedadam'] else None,
+            'beta2': self.config.get('beta2', None) if self.config.get('fl_algorithm') in ['fedyogi', 'fedadam'] else None,
+            'eta': self.config.get('eta', None) if self.config.get('fl_algorithm') in ['fedyogi', 'fedadam'] else None,
+            'tau': self.config.get('tau', None) if self.config.get('fl_algorithm') in ['fedyogi', 'fedadam'] else None,
+            
+            # Metriche performance
+            'best_epoch': self.best_round,
+            'best_f1': self.best_f1,
+            'best_acc': self.best_acc,
+            'best_prec': self.best_prec,
+            'best_recall': self.best_recall,
+            'best_loss': self.best_loss,
+            'best_f1_test': self.best_f1_test,
+            'best_acc_test': self.best_acc_test,
+            'best_recall_test': self.best_recall_test,
+            'best_precision_test': self.best_prec_test,
+            'best_round_test': self.best_round_test,
 
-                         'total_duration': sum(self.epoch_duration), 'dataframe_path': save_path,
-                         'model_path': model_path
-                         }
+            # Altre informazioni
+            'total_duration': sum(self.epoch_duration),
+            'dataframe_path': save_path,
+            'model_path': model_path
+        }
 
         parameter_path = os.path.join(actual_path, output_path, "training_parameters.csv")
 

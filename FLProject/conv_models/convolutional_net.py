@@ -8,6 +8,7 @@ from torchvision.datasets import ImageFolder
 from torchsummary import summary
 import os
 import time
+import numpy as np
 from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score
 import rexnet.rexnetv1_lite as rexnet
 
@@ -71,17 +72,67 @@ class ConvolutionalNet:
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         return train_loader
 
-    def train(self, epochs=NUM_EPOCHS, lr=LEARNING_RATE, batch_size=BATCH_SIZE):
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
-        print(f'Training model {self.name}...')
-        time_tot = 0
-        train_map = {'f1_score': [], 'accuracy_score': [], 'precision_score': [], 'recall_score': []}
-        train_loss = 0
-        train_path_loader = os.path.join(self.dataset_path, 'train')
-        train_loader = self.transform_train(train_path_loader, batch_size)
+    def train(self, epochs=NUM_EPOCHS, lr=LEARNING_RATE, batch_size=BATCH_SIZE, fl_config=None):
+        try:
+            if fl_config and fl_config.get('algorithm') == 'fedyogi':
+                from torch.optim import Optimizer
+                
+                class FedYogiOptimizer(Optimizer):
+                    def __init__(self, params, lr=lr, betas=(0.9, 0.99), eps=1e-3):
+                        defaults = dict(lr=lr, betas=betas, eps=eps)
+                        super().__init__(params, defaults)
+                        
+                        for group in self.param_groups:
+                            for p in group['params']:
+                                state = self.state[p]
+                                state['step'] = 0
+                                state['exp_avg'] = torch.zeros_like(p)
+                                state['exp_avg_sq'] = torch.zeros_like(p)
+                                
+                    def step(self):
+                        for group in self.param_groups:
+                            for p in group['params']:
+                                if p.grad is None:
+                                    continue
+                                    
+                                exp_avg, exp_avg_sq = self.state[p]['exp_avg'], self.state[p]['exp_avg_sq']
+                                beta1, beta2 = group['betas']
+                                eps = group['eps']
+                                
+                                self.state[p]['step'] += 1
+                                
+                                exp_avg.mul_(beta1).add_(p.grad, alpha=1 - beta1)
+                                exp_avg_sq.addcmul_(p.grad, p.grad, value=1 - beta2)
+                                
+                                denom = exp_avg_sq.sqrt().add_(eps)
+                                
+                                p.data.addcdiv_(exp_avg, denom, value=-group['lr'])
+                
+                optimizer = FedYogiOptimizer(self.model.parameters(), 
+                                           lr=lr,
+                                           betas=(fl_config.get('beta1', 0.9), 
+                                                 fl_config.get('beta2', 0.99)),
+                                           eps=fl_config.get('tau', 1e-3))
+            else:
+                optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
+                
+            print(f'Training model {self.name}...')
+            time_tot = 0
+            train_map = {'f1_score': [], 'accuracy_score': [], 'precision_score': [], 'recall_score': []}
+            train_loss = 0
+            train_path_loader = os.path.join(self.dataset_path, 'train')
+            train_loader = self.transform_train(train_path_loader, batch_size)
+            
+            # Store initial weights for FedProx
+            if fl_config and fl_config.get('algorithm') == 'fedprox':
+                initial_weights = [w.clone().detach() for w in self.model.parameters()]
+                
+        except Exception as e:
+            print(f"Error initializing training: {str(e)}")
+            raise
         for epoch in range(epochs):
             t = time.time()
-            train_loss = self._epoch_train(train_loader, optimizer)
+            train_loss = self._epoch_train(train_loader, optimizer, fl_config, initial_weights if 'initial_weights' in locals() else None)
             valid_loss, metric_score , valid_time, valid_size = self.validate(batch_size)
             train_map['f1_score'].append(metric_score['f1_score'])
             train_map['accuracy_score'].append(metric_score['accuracy'])
@@ -209,24 +260,69 @@ class ConvolutionalNet:
             param.data.copy_(param_)
         # self.model.load_state_dict(weights)
 
-    def _epoch_train(self, train_loader, optimizer):
-        self.model.train()
-        running_loss = 0.0
-        for inputs, labels in train_loader:
-            inputs, labels = inputs.to(self.device), labels.to(self.device)
-
-            optimizer.zero_grad()
-
-            outputs = self.model(inputs)
-            if self.name == 'RexNet':
-                outputs = self.classifier(outputs)
-            loss = self.criterion(outputs, labels)
-
-            loss.backward()
-            optimizer.step()
-
-            running_loss += loss.item() * inputs.size(0)
-
+    def _epoch_train(self, train_loader, optimizer, fl_config=None, initial_weights=None):
+        """
+        Train for one epoch with optional FL algorithm support
+        Args:
+            train_loader: DataLoader for training data
+            optimizer: The optimizer to use
+            fl_config: Configuration for FL algorithm (optional)
+            initial_weights: Initial weights for FedProx (optional)
+        """
+        try:
+            self.model.train()
+            running_loss = 0.0
+            
+            for inputs, labels in train_loader:
+                try:
+                    inputs, labels = inputs.to(self.device), labels.to(self.device)
+                    
+                    # Forward pass
+                    outputs = self.model(inputs)
+                    if self.name == 'RexNet':
+                        outputs = self.classifier(outputs)
+                    
+                    # Calculate main loss
+                    loss = self.criterion(outputs, labels)
+                    
+                    # Add FL-specific regularization terms
+                    if fl_config:
+                        if fl_config.get('algorithm') == 'fedprox' and initial_weights is not None:
+                            # Add proximal term for FedProx
+                            proximal_term = fl_config.get('proximal_term', 0.01)
+                            prox_loss = 0
+                            for w, w_0 in zip(self.model.parameters(), initial_weights):
+                                prox_loss += (proximal_term / 2) * torch.sum((w - w_0.to(w.device)) ** 2)
+                            loss += prox_loss
+                        elif fl_config.get('algorithm') == 'fedyogi':
+                            # FedYogi uses its custom optimizer which handles the updates
+                            pass
+                    
+                    # Backward pass and optimization
+                    optimizer.zero_grad()
+                    loss.backward()
+                    
+                    # Apply gradient clipping for stability
+                    if fl_config and fl_config.get('algorithm') == 'fedyogi':
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                    
+                    optimizer.step()
+                    
+                    running_loss += loss.item() * inputs.size(0)
+                    
+                except RuntimeError as e:
+                    if "out of memory" in str(e):
+                        if hasattr(torch.cuda, 'empty_cache'):
+                            torch.cuda.empty_cache()
+                    print(f"Error in batch processing: {str(e)}")
+                    continue
+                    
+            return running_loss / len(train_loader.dataset)
+            
+        except Exception as e:
+            print(f"Error in epoch training: {str(e)}")
+            raise
+        
         epoch_loss = running_loss / len(train_loader.dataset)
         return epoch_loss
 
