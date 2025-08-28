@@ -31,9 +31,24 @@ def main(config_file=CONFIG_FILE, splitting_dir=CLIENTS_PATHS, images_path=IMAGE
     # Load configuration
     try:
         config = load_json(config_file)
-        num_clients = config['num_clients']
+        
+        # Get number of clients from client_configuration if available, otherwise from legacy field
+        client_config = config.get('client_configuration', {})
+        if 'num_clients' in client_config:
+            num_clients = client_config['num_clients']
+            print(f"Using num_clients from client_configuration: {num_clients}")
+        else:
+            num_clients = config.get('num_clients', 4)
+            print(f"Using num_clients from legacy configuration: {num_clients}")
+            
         print(f"Configuration loaded from {config_file}")
         print(f"Using FL algorithm: {config.get('fl_algorithm', 'fedavg')}")
+        
+        # Show client profile if configured
+        client_quality = client_config.get('client_quality')
+        if client_quality:
+            print(f"Client quality profile: {client_quality}")
+        
     except Exception as e:
         print(f"Error loading configuration: {e}")
         return

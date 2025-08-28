@@ -60,6 +60,11 @@ class FederatedClient(object):
             
         logging.getLogger("socketio").setLevel(logging.WARN)
         self.set_logger()
+        
+        # Log client type and resources at startup
+        client_category = self.client_resources.get_client_category()
+        self.logger.info(f"[CLIENT] INITIALIZED: {self.client_resources.get_detailed_description()}")
+        self.logger.info(f"[DATA] Dataset path: {dataset_path}")
 
         self.sio = socketio.Client(logger=True, request_timeout=60, reconnection=True)  #engineio_logger=True
         try:
@@ -74,7 +79,7 @@ class FederatedClient(object):
 
     def set_logger(self):
         datestr = time.strftime('%d%m')
-        timestr = time.strftime('%m%d%H%M')
+        timestr = time.strftime('%m%d%H')  # Removed minutes to keep same hour clients together
         self.logger.setLevel(logging.INFO)
         log_dir = os.path.join("logs", datestr, "FL-Client-LOG")
         os.makedirs(log_dir, exist_ok=True)
@@ -223,6 +228,11 @@ class FederatedClient(object):
             self.logger.info("Average Acc Score {}".format(avg_acc))
             self.logger.info("Time Tot of Training {}".format(time_tot))
             self.logger.info("===================================")
+
+            # Enhanced logging with client type
+            client_category = self.client_resources.get_client_category()
+            self.logger.info(f"[SEND] [{client_category}] Sending trained model and metrics to server")
+            self.logger.info(f"[CLIENT] Client resources: {self.client_resources.get_detailed_description()}")
 
             self.sio.emit('client_update', resp)
             self.logger.info("Sent the Trained model and Metrics to the server")

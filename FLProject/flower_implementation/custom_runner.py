@@ -65,6 +65,16 @@ class CustomFrameworkRunner:
             "client_response_timeout": 120  # Longer timeout for testing
         })
         
+        # Add client configuration section if not present
+        if "client_configuration" not in config:
+            config["client_configuration"] = {}
+        
+        # Update client configuration to use the specified number of clients
+        config["client_configuration"].update({
+            "num_clients": self.num_clients,
+            "client_quality": "bilanciati"  # Default to balanced clients for testing
+        })
+        
         # Save temporary config
         with open(self.temp_config_path, 'w') as f:
             json.dump(config, f, indent=2)

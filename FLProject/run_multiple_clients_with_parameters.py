@@ -23,8 +23,23 @@ def load_json(filename):
     with open(filename) as f:
         return json.load(f)
 
-def create_diverse_client_resources(num_clients):
-    """Create diverse client resources for testing"""
+def create_client_resources_from_config(config):
+    """Create client resources using the new profile-based configuration"""
+    try:
+        # Use the new profile-based generation
+        client_resources = ClientResources.generate_clients_from_config(config)
+        return client_resources
+    except Exception as e:
+        print(f"Warning: Error using profile-based generation: {e}")
+        print("Falling back to legacy diverse client generation")
+        
+        # Fallback to legacy generation
+        client_config = config.get('client_configuration', {})
+        num_clients = client_config.get('num_clients', config.get('num_clients', 4))
+        return create_diverse_client_resources_legacy(num_clients)
+
+def create_diverse_client_resources_legacy(num_clients):
+    """Legacy method for creating diverse client resources (kept for backward compatibility)"""
     resources = []
     
     # Create different types of clients
@@ -104,13 +119,19 @@ def run_experiment(policy_name, aggregation_policy, config_file=CONFIG_FILE,
         print(f"Error splitting dataset: {e}")
         return
 
-    # Create diverse client resources
-    client_resources = create_diverse_client_resources(num_clients)
+    # Create client resources using new profile-based configuration
+    client_resources = create_client_resources_from_config(config)
+    
+    # Enhanced logging with client profiles
+    client_config = config.get('client_configuration', {})
+    client_quality = client_config.get('client_quality', 'Not specified')
+    print(f"\n🤖 CLIENT PROFILE CONFIGURATION:")
+    print(f"   Profile: {client_quality}")
+    print(f"   Number of clients: {len(client_resources)}")
+    
     print(f"\nClient Resource Configuration:")
     for i, resources in enumerate(client_resources):
-        print(f"  Client {i}: Power={resources.compute_power:.2f}, "
-              f"Bandwidth={resources.bandwidth:.2f}Mbps, "
-              f"Reliability={resources.reliability:.2f}")
+        print(f"  Client {i}: {resources.get_detailed_description()}")
 
     # Start server in separate thread
     print(f"\nStarting server with {policy_name} aggregation policy...")

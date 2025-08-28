@@ -60,6 +60,10 @@ class FederatedServer(object):
         # Track client participation
         self.current_round_contacted_clients = []
         self.current_round_responding_clients = []
+        self.eval_clients_contacted = []  # Track clients contacted for evaluation
+        self.round_aggregation_done = False  # Prevent multiple aggregations per round
+        self.partial_aggregation_timer = None  # Timer for partial aggregation
+        self.partial_aggregation_wait_time = self.config.get('partial_aggregation_wait_time', 30)  # seconds to wait before partial aggregation
         
         # Initialize aggregation policy
         if aggregation_policy is None:
@@ -71,7 +75,31 @@ class FederatedServer(object):
         self.logger = logging.getLogger("Federated-Server")
         self.set_logger()
         self.logger.info("Config Params: " + str(self.config))
-
+        
+        # Determine expected number of clients
+        self.expected_clients = self._get_expected_client_count()
+        
+        # Log client configuration if available
+        client_config = self.config.get('client_configuration', {})
+        if client_config:
+            num_clients = client_config.get('num_clients', 'Not specified')
+            client_quality = client_config.get('client_quality', 'Not specified')
+            self.logger.info(f"[CLIENT] PROFILE CONFIGURATION:")
+            self.logger.info(f"   Number of clients: {num_clients}")
+            self.logger.info(f"   Client quality profile: {client_quality}")
+            
+            # Log quality ranges if profile is valid
+            if client_quality in ClientResources.QUALITY_PROFILES:
+                ranges = ClientResources.get_quality_ranges(client_quality)
+                self.logger.info(f"   Profile ranges - Compute: {ranges['compute_power']}, "
+                               f"Bandwidth: {ranges['bandwidth']} Mbps, "
+                               f"Reliability: {ranges['reliability']}")
+            elif client_quality == 'misti':
+                mix_dist = client_config.get('mix_distribution', {})
+                self.logger.info(f"   Mixed distribution: {mix_dist}")
+        else:
+            self.logger.info("[CLIENT] PROFILE: Using legacy configuration (no client_configuration section)")
+        
         self.aggregator = Aggregator(self.config, self.logger)
 
         self.early_stop_tolerance = 0
@@ -82,8 +110,31 @@ class FederatedServer(object):
         self.socketio = SocketIO(self.app, ping_timeout=3600,
                                  ping_interval=3600,
                                  max_http_buffer_size=int(1e32))
+        
+        # Setup Flask routes
+        self.setup_flask_routes()
+        
+        # Determine expected number of clients after socketio is initialized
+        self.expected_clients = self._get_expected_client_count()
+        self.logger.info(f"[SERVER] Expecting {self.expected_clients} clients to connect before starting")
+        
         self.register_handles()
 
+    def _get_expected_client_count(self):
+        """Determine the expected number of clients based on configuration"""
+        # First check if client_configuration specifies number of clients
+        client_config = self.config.get('client_configuration', {})
+        if client_config and 'num_clients' in client_config:
+            return client_config['num_clients']
+        
+        # Fallback to num_clients or MIN_NUM_WORKERS
+        if 'num_clients' in self.config:
+            return self.config['num_clients']
+        
+        return self.MIN_NUM_WORKERS
+
+    def setup_flask_routes(self):
+        """Setup Flask routes for the web interface"""
         @self.app.route('/')
         def status_page():
             df = self.aggregator.get_stats()
@@ -113,6 +164,11 @@ class FederatedServer(object):
         self.current_round_client_updates = []
         self.current_round_contacted_clients = client_sids_selected.copy()
         self.current_round_responding_clients = []
+        self.round_aggregation_done = False  # Reset aggregation flag for new round
+        # Reset partial aggregation timer
+        if self.partial_aggregation_timer:
+            self.partial_aggregation_timer.cancel()
+            self.partial_aggregation_timer = None
         self.logger.info("### Round {} ###".format(self.current_round))
         self.logger.info("Requesting updates from {}".format(client_sids_selected))
         current_weights = obj_to_pickle_string(self.aggregator.current_weights)
@@ -147,12 +203,14 @@ class FederatedServer(object):
     def stop_and_eval(self):
         current_weights = obj_to_pickle_string(self.aggregator.current_weights)
         self.eval_client_updates = []
+        self.eval_clients_contacted = []  # Track which clients we're expecting evaluations from
         for rid in self.registered_clients:
-            emit('stop_and_eval', {
+            self.socketio.emit('stop_and_eval', {
                 'batch_size': self.config['batch_size'],
                 'current_weights': current_weights,
                 'STOP': self.STOP
             }, room=rid)
+            self.eval_clients_contacted.append(rid)
         self.logger.info("Sent the aggregated model to every client registered to validate it")
 
     def set_logger(self):
@@ -180,15 +238,22 @@ class FederatedServer(object):
 
         @self.socketio.on('connect')
         def handle_connect():
-            self.logger.info("Client Sid:" + str(request.sid) + "connected")
+            self.logger.info("[CONNECT] Client Sid:" + str(request.sid) + " connected")
 
         @self.socketio.on('reconnect')
         def handle_reconnect():
-            self.logger.info("Client Sid:" + str(request.sid) + "reconnected")
+            self.logger.info("[RECONNECT] Client Sid:" + str(request.sid) + " reconnected")
 
         @self.socketio.on('disconnect')
         def handle_disconnect():
-            self.logger.info("Client Sid:" + str(request.sid) + "disconnected")
+            # Log with client type if available
+            if request.sid in self.client_resources_detailed:
+                client_resources = self.client_resources_detailed[request.sid]
+                category = client_resources.get_client_category()
+                self.logger.info(f"[DISCONNECT] Client Sid:{request.sid} [{category}] disconnected")
+            else:
+                self.logger.info("[DISCONNECT] Client Sid:" + str(request.sid) + " disconnected")
+                
             if request.sid in self.registered_clients:
                 self.registered_clients.remove(request.sid)
                 self.refresh_client_round()
@@ -204,13 +269,13 @@ class FederatedServer(object):
             self.registered_clients.add(request.sid)
             self.refresh_client_round()
 
-            # TODO CAMBIARE CONDIZIONE DI AVVIO PROCESSO DI TRAINING
-
-            if len(self.registered_clients) >= self.MIN_NUM_WORKERS and self.current_round == -1:
+            # Start federated process only when we have the expected number of clients
+            if len(self.registered_clients) >= self.expected_clients and self.current_round == -1:
                 self.logger.info("The Federated Process is Starting")
                 self.check_client_resource()
-            elif len(self.registered_clients) < self.MIN_NUM_WORKERS:
-                self.logger.info("Waiting for clients to start the process")
+            elif len(self.registered_clients) < self.expected_clients:
+                remaining = self.expected_clients - len(self.registered_clients)
+                self.logger.info(f"Waiting for {remaining} more clients to start the process ({len(self.registered_clients)}/{self.expected_clients} connected)")
             else:
                 self.logger.error("The current_round is not equal to -1, please restart server.")
 
@@ -279,15 +344,18 @@ class FederatedServer(object):
                 # Store client resource information if available
                 if 'client_resources' in data:
                     resources_data = data['client_resources']
-                    self.client_resources_detailed[request.sid] = ClientResources(
+                    client_resources = ClientResources(
                         compute_power=resources_data['compute_power'],
                         bandwidth=resources_data['bandwidth'],
                         reliability=resources_data['reliability']
                     )
-                    self.logger.info(f"Updated resources for {request.sid}: "
-                                   f"Power={resources_data['compute_power']:.2f}, "
-                                   f"Bandwidth={resources_data['bandwidth']:.2f}, "
-                                   f"Reliability={resources_data['reliability']:.2f}")
+                    self.client_resources_detailed[request.sid] = client_resources
+                    
+                    # Enhanced logging with client category
+                    category = client_resources.get_client_category()
+                    self.logger.info(f"[CLIENT] Client {request.sid} resources updated: {client_resources.get_detailed_description()}")
+                else:
+                    self.logger.info(f"[CLIENT] Client {request.sid} update received (no resource info)")
                 
                 # Check if we can proceed with aggregation
                 self.check_aggregation_conditions()
@@ -299,7 +367,7 @@ class FederatedServer(object):
             self.logger.info("handle client_eval {}".format(request.sid))
             self.eval_client_updates += [data]
 
-            if len(self.eval_client_updates) == len(self.registered_clients):  # self.NUM_CLIENTS_CONTACTED_PER_ROUND:
+            if len(self.eval_client_updates) == len(self.eval_clients_contacted):  # Wait for evaluations from contacted clients only
 
                 if self.config['weighted_aggregation']:
                     test_loss, test_f1, test_acc, test_prec, test_recall = self.aggregator.aggregate_evaluation_metrics_weighted(
@@ -346,6 +414,15 @@ class FederatedServer(object):
                     self.aggregator.best_recall = test_recall
                     self.aggregator.best_weight = self.aggregator.current_weights
                     self.aggregator.best_round = self.current_round
+                    
+                # Check stopping conditions after evaluation is complete
+                if self.current_round >= self.config['global_epoch'] - 1:
+                    self.logger.info("Reached the Maximum number of global epochs, the process is stopping..")
+                    print("FINISHING FEDERATED PROCESS...")
+                    obj_to_pickle_string(self.aggregator.current_weights, save=True,
+                                                       file_path="weights.pkl")
+                    self.STOP = True
+                    
                 if self.STOP:
                     self.logger.info("== done ==")
                     self.eval_client_updates = None  # special value, forbid evaling again
@@ -359,7 +436,7 @@ class FederatedServer(object):
                     self.aggregator.save_df(self.config)
                     print("Federated Process ended, saved df of parameters")
                     for client in self.registered_clients:
-                        emit("shutdown", room=client)
+                        self.socketio.emit("shutdown", room=client)
                     self.shutdown_server()
                 else:
                     self.logger.info("start to next round...")
@@ -374,32 +451,59 @@ class FederatedServer(object):
 
     def check_aggregation_conditions(self):
         """Check if we can proceed with aggregation (either all clients responded or partial aggregation conditions met)"""
+        # Prevent multiple aggregations for the same round
+        if self.round_aggregation_done:
+            self.logger.info(f"Aggregation already completed for Round {self.current_round}. Ignoring additional client updates.")
+            return
+            
         num_responded = len(self.current_round_client_updates)
         num_contacted = len(self.current_round_contacted_clients)
         
         # Case 1: All contacted clients have responded
         if num_responded == num_contacted:
             self.logger.info(f"All {num_contacted} contacted clients responded. Proceeding with aggregation.")
+            # Cancel partial aggregation timer if running
+            if self.partial_aggregation_timer:
+                self.partial_aggregation_timer.cancel()
+                self.partial_aggregation_timer = None
             self.proceed_with_aggregation()
             return
             
         # Case 2: Partial aggregation conditions
-        if self.partial_aggregation_enabled:
-            # Check if we have minimum clients
-            if num_responded >= self.min_clients_for_aggregation:
-                # TODO: Add timeout mechanism here if needed
-                # For now, we proceed immediately when minimum is reached
-                self.logger.info(f"Partial aggregation: {num_responded}/{num_contacted} clients responded "
-                               f"(minimum: {self.min_clients_for_aggregation}). Proceeding with partial aggregation.")
-                self.proceed_with_aggregation()
-                return
+        if self.partial_aggregation_enabled and num_responded >= self.min_clients_for_aggregation:
+            # Start timer for partial aggregation if not already started
+            if self.partial_aggregation_timer is None:
+                self.logger.info(f"Minimum clients reached ({num_responded}/{num_contacted}). "
+                               f"Starting {self.partial_aggregation_wait_time}s timer for partial aggregation...")
+                import threading
+                self.partial_aggregation_timer = threading.Timer(
+                    self.partial_aggregation_wait_time, 
+                    self._partial_aggregation_timeout
+                )
+                self.partial_aggregation_timer.start()
+            else:
+                self.logger.info(f"Waiting for more clients: {num_responded}/{num_contacted} responded, "
+                               f"minimum needed: {self.min_clients_for_aggregation} (timer running)")
+            return
         
         # Case 3: Not enough clients yet, continue waiting
         self.logger.info(f"Waiting for more clients: {num_responded}/{num_contacted} responded, "
                         f"minimum needed: {self.min_clients_for_aggregation}")
 
+    def _partial_aggregation_timeout(self):
+        """Called when partial aggregation timeout expires"""
+        if not self.round_aggregation_done:
+            num_responded = len(self.current_round_client_updates)
+            num_contacted = len(self.current_round_contacted_clients)
+            self.logger.info(f"Partial aggregation timeout reached. Proceeding with {num_responded}/{num_contacted} clients.")
+            self.partial_aggregation_timer = None
+            self.proceed_with_aggregation()
+
     def proceed_with_aggregation(self):
         """Perform aggregation and continue to next round or finish training"""
+        # Mark aggregation as done to prevent multiple calls
+        self.round_aggregation_done = True
+        
         num_participated = len(self.current_round_client_updates)
         num_contacted = len(self.current_round_contacted_clients)
         
@@ -415,14 +519,6 @@ class FederatedServer(object):
 
         self.logger.info("=== training ===")
         self.logger.info("aggr_train_loss {}".format(aggr_train_loss))
-        
-        # Check stopping conditions
-        if self.current_round >= self.config['global_epoch'] - 1:
-            self.logger.info("Reached the Maximum number of global epochs, the process is stopping..")
-            print("FINISHING FEDERATED PROCESS...")
-            obj_to_pickle_string(self.aggregator.current_weights, save=True,
-                                               file_path="weights.pkl")
-            self.STOP = True
 
         self.test_on_selected()
         
@@ -441,7 +537,7 @@ class FederatedServer(object):
         if non_participants:
             self.logger.info(f"Broadcasting updated model to {len(non_participants)} non-participating clients: {list(non_participants)}")
             for client_id in non_participants:
-                emit('model_update', {
+                self.socketio.emit('model_update', {
                     'round_number': self.current_round,
                     'current_weights': current_weights,
                     'participation_status': 'observer'

@@ -64,6 +64,15 @@ def main():
         # Load configuration
         config = load_json(args.config)
         
+        # Get number of clients from config if not specified as argument
+        client_config = config.get('client_configuration', {})
+        if 'num_clients' in client_config:
+            num_clients = client_config['num_clients']
+            print(f"Using num_clients from config: {num_clients}")
+        else:
+            num_clients = args.num_clients
+            print(f"Using num_clients from command line: {num_clients}")
+        
         # Prepare dataset splitting
         if args.mode == 'resource':
             policy_name = f"{args.policy}_aggregation"
@@ -72,12 +81,12 @@ def main():
             clients_dir = args.clients_dir
         
         # Check if clients directory exists, if not split dataset
-        if not os.path.exists(clients_dir) or len(os.listdir(clients_dir)) < args.num_clients:
-            print(f"Splitting dataset into {args.num_clients} groups")
+        if not os.path.exists(clients_dir) or len(os.listdir(clients_dir)) < num_clients:
+            print(f"Splitting dataset into {num_clients} groups")
             print(f"Source: {args.images_dir}")
             print(f"Destination: {clients_dir}")
             
-            splitter = DatasetSplitterClients(clients_dir, args.images_dir, args.num_clients)
+            splitter = DatasetSplitterClients(clients_dir, args.images_dir, num_clients)
             splitter.split()
         else:
             print(f"Using existing client data in: {clients_dir}")
@@ -85,24 +94,41 @@ def main():
         # Create client resources if in resource mode
         client_resources_list = []
         if args.mode == 'resource':
-            print("\nGenerating client resources:")
-            for i in range(args.num_clients):
-                resources = ClientResources(
-                    compute_power=np.random.uniform(0.5, 2.0),
-                    bandwidth=np.random.uniform(1.0, 10.0),
-                    reliability=np.random.uniform(0.8, 1.0)
-                )
-                client_resources_list.append(resources)
-                print(f"  Client {i}: Power={resources.compute_power:.2f}, "
-                      f"Bandwidth={resources.bandwidth:.2f}, Reliability={resources.reliability:.2f}")
+            print(f"\n🤖 GENERATING CLIENT RESOURCES:")
+            
+            # Show configured profile info
+            client_config = config.get('client_configuration', {})
+            client_quality = client_config.get('client_quality', 'Not configured')
+            print(f"   Profile: {client_quality}")
+            
+            try:
+                # Use new profile-based generation
+                client_resources_list = ClientResources.generate_clients_from_config(config)
+                
+                print(f"   Generated {len(client_resources_list)} clients:")
+                for i, resources in enumerate(client_resources_list):
+                    print(f"     Client {i}: {resources.get_detailed_description()}")
+            except Exception as e:
+                print(f"Warning: Error using profile-based generation: {e}")
+                print("Falling back to random generation")
+                
+                # Fallback to random generation
+                for i in range(num_clients):
+                    resources = ClientResources(
+                        compute_power=np.random.uniform(0.5, 2.0),
+                        bandwidth=np.random.uniform(1.0, 10.0),
+                        reliability=np.random.uniform(0.8, 1.0)
+                    )
+                    client_resources_list.append(resources)
+                    print(f"     Client {i}: {resources.get_detailed_description()}")
         else:
-            client_resources_list = [None] * args.num_clients
+            client_resources_list = [None] * num_clients
         
         # Start clients in separate threads
-        print(f"\nStarting {args.num_clients} federated clients...")
+        print(f"\nStarting {num_clients} federated clients...")
         threads = []
         
-        for i in range(args.num_clients):
+        for i in range(num_clients):
             client_path = os.path.join(clients_dir, f"client_{i}")
             
             thread = threading.Thread(
@@ -116,7 +142,7 @@ def main():
             # Small delay between client starts
             time.sleep(2)
         
-        print(f"All {args.num_clients} clients started!")
+        print(f"All {num_clients} clients started!")
         print("Clients are now connecting to the server...")
         print("Press Ctrl+C to stop all clients")
         

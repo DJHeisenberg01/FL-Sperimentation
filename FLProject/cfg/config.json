@@ -16,20 +16,35 @@
   "batch_size": 16,
   "max_cpu_rate": 0.8,
   "round_wait_time": 10,
-
   "partial_aggregation_enabled": true,
   "_partial_aggregation_comment": "Permette aggregazione con meno client di quelli contattati",
   "min_clients_for_aggregation": 2,
   "_min_clients_comment": "Numero minimo di client necessari per l'aggregazione parziale",
   "client_response_timeout": 60,
   "_timeout_comment": "Max secondi da attendere per le risposte dei client",
-
   "fl_algorithm": "fedyogi",
-
   "_comment": "Parametri per tipi specifici di algoritmi FL",
   "proximal_term": 0.01,
   "beta1": 0.9,
   "beta2": 0.99,
   "eta": 0.01,
-  "tau": 1e-3
+  "tau": 0.001,
+  "client_configuration": {
+    "_comment": "Configurazione per la generazione dei client con profili di qualità",
+    "num_clients": 6,
+    "client_quality": "scarsi",
+    "_quality_options": ["ottimali", "bilanciati", "scarsi", "misti"],
+    "_quality_descriptions": {
+      "ottimali": "Client con risorse elevate (workstation, server, connessioni veloci)",
+      "bilanciati": "Mix di client con risorse moderate (desktop standard, 4G/WiFi)",
+      "scarsi": "Client con risorse limitate (dispositivi mobili, IoT, connessioni lente)",
+      "misti": "Distribuzione mista di tutti i tipi di client"
+    },
+    "mix_distribution": {
+      "_comment": "Distribuzione per profilo 'misti' - somma deve essere 1.0",
+      "ottimali": 0.2,
+      "bilanciati": 0.6,
+      "scarsi": 0.2
+    }
+  }
 }
