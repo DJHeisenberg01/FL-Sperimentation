@@ -12,7 +12,7 @@
   "num_clients": 4,
   "MIN_NUM_WORKERS": 4,
   "models_percentage": 1,
-  "learning_rate": 1e-5,
+  "learning_rate": 1e-05,
   "batch_size": 16,
   "max_cpu_rate": 0.8,
   "round_wait_time": 10,
@@ -30,10 +30,15 @@
   "eta": 0.01,
   "tau": 0.001,
   "client_configuration": {
-    "_comment": "Configurazione per la generazione dei client con profili di qualità",
-    "num_clients": 6,
+    "_comment": "Configurazione per la generazione dei client con profili di qualit\u00c3\u00a0",
+    "num_clients": 4,
     "client_quality": "scarsi",
-    "_quality_options": ["ottimali", "bilanciati", "scarsi", "misti"],
+    "_quality_options": [
+      "ottimali",
+      "bilanciati",
+      "scarsi",
+      "misti"
+    ],
     "_quality_descriptions": {
       "ottimali": "Client con risorse elevate (workstation, server, connessioni veloci)",
       "bilanciati": "Mix di client con risorse moderate (desktop standard, 4G/WiFi)",

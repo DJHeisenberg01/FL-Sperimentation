@@ -206,6 +206,21 @@ class FederatedClient(object):
             avg_f1 = sum(list_f1) / len(list_f1)
             avg_acc = sum(list_acc) / len(list_acc)
 
+            # METRICHE DA SALVARE
+            metrics_to_save = {
+                "round": cur_round,
+                "train_loss": train_loss,
+                "avg_f1": avg_f1,
+                "avg_acc": avg_acc,
+                "train_size": train_size,
+                "compute_power": self.client_resources.compute_power,
+                "bandwidth": self.client_resources.bandwidth,
+                "reliability": self.client_resources.reliability,
+                "training_time": time_tot,
+                "client_name": self.config.get('client_name', f"client_{os.path.basename(self.dataset_path)}")
+            }
+            self.save_metrics(metrics_to_save, cur_round)
+
             # Include client resource information in response
             resp = {
                 'round_number': cur_round,
@@ -305,6 +320,26 @@ class FederatedClient(object):
                 # Fallback for other types
                 total_size += len(str(weight).encode('utf-8'))
         return total_size
+
+    def save_metrics(self, metrics_dict, round_number):
+        metrics_dir = "metrics"
+        os.makedirs(metrics_dir, exist_ok=True)
+        # Usa il nome client per il file
+        client_name = self.config.get('client_name', f"client_{os.path.basename(self.dataset_path)}")
+        metrics_path = os.path.join(metrics_dir, f"metrics_{client_name}.json")
+        # Se il file esiste, aggiorna la lista dei round
+        if os.path.exists(metrics_path):
+            try:
+                with open(metrics_path, "r") as f:
+                    old_data = json.load(f)
+            except Exception:
+                old_data = {}
+        else:
+            old_data = {}
+        # Salva le metriche per ogni round
+        old_data[str(round_number)] = metrics_dict
+        with open(metrics_path, "w") as f:
+            json.dump(old_data, f)
 
 if __name__ == "__main__":
     client = FederatedClient(CONFIG_FILE,"dataset/Clients/client_0")
