@@ -32,7 +32,7 @@
   "client_configuration": {
     "_comment": "Configurazione per la generazione dei client con profili di qualit\u00c3\u00a0",
     "num_clients": 4,
-    "client_quality": "scarsi",
+    "client_quality": "misti",
     "_quality_options": [
       "ottimali",
       "bilanciati",

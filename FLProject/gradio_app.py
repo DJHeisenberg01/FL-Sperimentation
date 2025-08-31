@@ -87,40 +87,7 @@ def get_server_log():
 def get_client_log():
     return "".join(client_log[-50:])
 
-def list_csv_files():
-    files = []
-    for root, dirs, filenames in os.walk(CSV_DIR):
-        for fname in filenames:
-            if fname.endswith(".csv"):
-                files.append(os.path.join(root, fname))
-    return files
 
-def plot_csv(csv_path):
-    try:
-        df = pd.read_csv(csv_path)
-        plt.figure(figsize=(8,4))
-        plotted = False
-        if "accuracy" in df.columns and df["accuracy"].notnull().any():
-            plt.plot(df["accuracy"], label="Accuracy")
-            plotted = True
-        if "loss" in df.columns and df["loss"].notnull().any():
-            plt.plot(df["loss"], label="Loss")
-            plotted = True
-        if plotted:
-            plt.legend()
-            plt.title(os.path.basename(csv_path))
-            plt.xlabel("Epoch/Round")
-            plt.ylabel("Metric")
-            plt.tight_layout()
-        else:
-            plt.text(0.5, 0.5, "Nessun dato 'accuracy' o 'loss' nel CSV", ha='center', va='center')
-            plt.axis('off')
-        return plt.gcf()
-    except Exception as e:
-        plt.figure(figsize=(6,2))
-        plt.text(0.5, 0.5, f"Errore: {e}", ha='center', va='center')
-        plt.axis('off')
-        return plt.gcf()
 
 def read_metrics():
     metrics = {}
@@ -169,6 +136,37 @@ def plot_metrics(metrics):
     plt.tight_layout()
     return plt.gcf()
 
+def read_server_metrics():
+    metrics_path = "metrics/server_metrics.json"
+    if not os.path.exists(metrics_path):
+        return {}
+    with open(metrics_path, "r") as f:
+        return json.load(f)
+
+def show_server_table():
+    data = read_server_metrics()
+    rows = []
+    for round_num, metrics in data.items():
+        row = {"Round": int(round_num)}
+        row.update(metrics)
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+def plot_server_metrics():
+    df = show_server_table()
+    plt.figure(figsize=(8,4))
+    if not df.empty:
+        if "test_acc" in df:
+            plt.plot(df["Round"], df["test_acc"], label="Test Accuracy")
+        if "test_loss" in df:
+            plt.plot(df["Round"], df["test_loss"], label="Test Loss")
+    plt.xlabel("Round")
+    plt.ylabel("Value")
+    plt.title("Server Metrics")
+    plt.legend()
+    plt.tight_layout()
+    return plt.gcf()
+
 # --- Interfaccia Gradio ---
 def update_config(
     ip_address, port, model_name, device, global_epoch, local_epoch, num_clients,
@@ -186,6 +184,7 @@ def update_config(
     config["learning_rate"] = float(learning_rate)
     config["client_configuration"]["num_clients"] = int(num_clients)
     config["client_configuration"]["client_quality"] = client_quality
+    config["MIN_NUM_WORKERS"] = int(num_clients)
     save_config(config)
     return "Configurazione aggiornata!"
 
@@ -251,10 +250,7 @@ with gr.Blocks() as demo:
         refresh_btn.click(get_server_log, outputs=server_log_box)
         refresh_btn.click(get_client_log, outputs=client_log_box)
 
-        csv_files = gr.Dropdown(list_csv_files(), label="Seleziona CSV")
-        plot_btn = gr.Button("Visualizza CSV")
-        plot_output = gr.Plot(label="Grafico CSV")
-        plot_btn.click(plot_csv, inputs=csv_files, outputs=plot_output)
+    
 
     with gr.Tab("Metriche"):
         gr.Markdown("Visualizza le metriche dei client")
@@ -272,14 +268,28 @@ with gr.Blocks() as demo:
         gr.Markdown("Monitoraggio live delle metriche dei client")
 
         refresh_btn = gr.Button("Aggiorna Dashboard")
-        metrics_box = gr.Textbox(label="Metriche Raw", lines=10)
+        
         plot_box = gr.Plot(label="Grafico Accuracy")
         table_box = gr.Dataframe(label="Tabella Metriche")
+        metrics_box = gr.Textbox(label="Metriche Raw", lines=10)
 
         def update_dashboard():
             metrics = read_metrics()
             return json.dumps(metrics, indent=2), plot_metrics(metrics), show_table(metrics)
 
         refresh_btn.click(update_dashboard, outputs=[metrics_box, plot_box, table_box])
+
+        
+
+    with gr.Tab("Server Training Metrics"):
+        gr.Markdown("Metriche di training del server (live da file JSON)")
+        server_table = gr.Dataframe(label="Server Metrics")
+        server_plot = gr.Plot(label="Server Metrics Plot")
+        refresh_server_btn = gr.Button("Aggiorna Server Metrics")
+
+        def refresh_server():
+            return show_server_table(), plot_server_metrics()
+
+        refresh_server_btn.click(refresh_server, outputs=[server_table, server_plot])
 
 demo.launch()

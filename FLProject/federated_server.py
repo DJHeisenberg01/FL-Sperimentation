@@ -22,6 +22,30 @@ CONFIG_FILE = 'cfg/config.json'
 def load_json(filename):
     with open(filename) as f:
         return json.load(f)
+    
+def save_server_metrics(round_num, test_loss, test_f1, test_acc, test_prec, test_recall):
+        metrics_dir = "metrics"
+        os.makedirs(metrics_dir, exist_ok=True)
+        metrics_path = os.path.join(metrics_dir, "server_metrics.json")
+        # Carica dati esistenti
+        if os.path.exists(metrics_path):
+            try:
+                with open(metrics_path, "r") as f:
+                    data = json.load(f)
+            except Exception:
+                data = {}
+        else:
+            data = {}
+        # Aggiorna dati per il round corrente
+        data[str(round_num)] = {
+            "test_loss": test_loss,
+            "test_f1": test_f1,
+            "test_acc": test_acc,
+            "test_prec": test_prec,
+            "test_recall": test_recall
+        }
+        with open(metrics_path, "w") as f:
+            json.dump(data, f)
 
 
 class FederatedServer(object):
@@ -119,6 +143,8 @@ class FederatedServer(object):
         self.logger.info(f"[SERVER] Expecting {self.expected_clients} clients to connect before starting")
         
         self.register_handles()
+        
+    
 
     def _get_expected_client_count(self):
         """Determine the expected number of clients based on configuration"""
@@ -445,6 +471,8 @@ class FederatedServer(object):
                     self.logger.info(f"Waiting {round_pause}s before starting next round...")
                     time.sleep(round_pause)
                     self.check_client_resource()
+                # Dopo aver calcolato test_loss, test_f1, test_acc, test_prec, test_recall
+                save_server_metrics(self.current_round, test_loss, test_f1, test_acc, test_prec, test_recall)
 
     def refresh_client_round(self):
         self.NUM_CLIENTS_CONTACTED_PER_ROUND = len(self.registered_clients) * self.config['models_percentage']
