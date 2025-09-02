@@ -227,6 +227,19 @@ Architettura basata su processi separati per massimo controllo:
 ./venv/Scripts/python.exe start_clients.py --mode resource --policy power
 ```
 
+#### Sistema Principale - Web App version
+È stata sviluppata una **Web Application basata su Gradio** che permette di modificare facilmente il file di configurazione e visualizzare i risultati sia del server che dei client, senza dover utilizzare il terminale. L’interfaccia, infatti, è **user-friendly** e offre diverse modalità di visualizzazione.
+
+Per avviare l’applicazione è sufficiente eseguire il file `gradio_app.py`.  
+Le sezioni disponibili sono:
+
+- **Configurazione**: consente di modificare in modo semplice il file `config.json`, facilitando la sperimentazione con diversi modelli, client e parametri di training.
+- **Avvio Server/Client**: permette di avviare il server e i client, oltre a selezionare la tipologia di aggregazione dei risultati.
+- **Log & Output**: mostra l’output del terminale di server e client, con la possibilità di aggiornare lo stato tramite un apposito tasto.
+- **Metriche**: presenta in formato tabellare le metriche di tutti i client per round, con un pulsante dedicato per aggiornarne i valori nel tempo.
+- **Dashboard**: fornisce una visualizzazione grafica, oltre a quella tabellare, per monitorare l’andamento delle metriche round dopo round.
+- **Server Training Metrics**: mostra le metriche aggregate dal server sia in formato tabellare che grafico, con un apposito tasto per l’aggiornamento dei dati.
+
 ### Sistema Automatico Policy Testing
 
 Sistema per testing automatico di multiple politiche di aggregazione:
@@ -379,15 +392,6 @@ Il sistema implementa logging strutturato multi-livello:
 - **Server Logs**: Decisioni di aggregazione, selezione client, metriche globali
 - **Client Logs**: Training locale, risorse utilizzate, comunicazione
 - **Framework Logs**: Confronti di performance, errori di sistema
-
-### Interfaccia Web
-
-Interfaccia di monitoraggio disponibile su `http://127.0.0.1:5000/`:
-
-- Visualizzazione real-time delle metriche
-- Stato dei client connessi
-- Progresso dei round di training
-- Grafici di convergenza
 
 ### Metriche Monitorate
 
