@@ -1,195 +1,197 @@
-### Panoramica del Sistema
+# Federated Learning Framework Plug-and-Play for Damaged Signal Detection
 
-Il sistema implementa un framework avanzato di Federated Learning che permette l'addestramento distribuito di modelli di deep learning su più client mantenendo i dati localmente su ogni dispositivo. Il sistema è progettato per simulare scenari realistici con client eterogenei che presentano diverse capacità computazionali, di rete e di affidabilità.
+### System Overview
 
-### Caratteristiche Principali
+The system implements an advanced Federated Learning framework that enables distributed training of deep learning models across multiple clients while keeping data locally on each device. The system is designed to simulate realistic scenarios with heterogeneous clients that have different computational, network, and reliability capabilities.
 
-Il framework si distingue per le seguenti innovazioni:
+### Key Features
 
-1. **Simulazione Resource-Aware**: Ogni client virtuale ha caratteristiche di prestazione diverse che influenzano realisticamente il comportamento del training
-2. **Politiche di Aggregazione Adaptive**: Implementazione di diverse strategie di selezione e aggregazione basate sulle risorse disponibili
-3. **Aggregazione Parziale**: Capacità di procedere con l'aggregazione anche quando non tutti i client rispondono
-4. **Confronto Framework**: Sistema di testing automatico che confronta il framework custom con FLOWER
-5. **Algoritmi FL Multipli**: Supporto per FedAvg, FedProx, FedYogi e FedAdam
+The framework is characterized by the following innovations:
+
+1. **Resource-Aware Simulation**: Each virtual client has different performance characteristics that realistically influence the training behavior  
+2. **Adaptive Aggregation Policies**: Implementation of various selection and aggregation strategies based on available resources  
+3. **Partial Aggregation**: Ability to proceed with aggregation even when not all clients respond  
+4. **Framework Comparison**: Automatic testing system that compares the custom framework with FLOWER  
+5. **Multiple FL Algorithms**: Support for FedAvg, FedProx, FedYogi, and FedAdam  
 
 ---
 
-## Architettura del Sistema
+## System Architecture
 
-### Componenti Principali
+### Main Components
 
-**Server Federato (federated_server.py)**
-Il server federato agisce come coordinatore centrale e gestisce:
+**Federated Server (federated_server.py)**  
+The federated server acts as the central coordinator and manages:
 
-- Gestione delle connessioni di più client simultanei
-- Mantenimento dello stato delle risorse di ogni client
-- Coordinamento dei round di addestramento globali
-- Selezione intelligente dei client basata su politiche configurabili
-- Aggregazione dei modelli utilizzando algoritmi avanzati
-- Monitoraggio e logging dettagliato delle performance
+- Management of connections with multiple simultaneous clients  
+- Maintenance of each client’s resource state  
+- Coordination of global training rounds  
+- Intelligent client selection based on configurable policies  
+- Model aggregation using advanced algorithms  
+- Detailed monitoring and logging of performance  
 
-**Client Federato (federated_client.py)**
-Ogni client federato mantiene:
+**Federated Client (federated_client.py)**  
+Each federated client maintains:
 
-- Dataset locale privato con gestione autonoma dei dati
-- Capacità di addestramento locale con algoritmi FL specifici
-- Simulazione realistica delle proprie risorse computazionali
-- Comunicazione asincrona con il server
-- Calcolo e reporting delle metriche locali
+- Local private dataset with autonomous data management  
+- Local training capabilities with specific FL algorithms  
+- Realistic simulation of its computational resources  
+- Asynchronous communication with the server  
+- Calculation and reporting of local metrics  
 
-**Sistema di Risorse (client_resources.py)**
-Gestisce la simulazione delle caratteristiche dei client:
+**Resource System (client_resources.py)**  
+Handles the simulation of client characteristics:
 
-- Potenza computazionale variabile (0.5x a 2.0x rispetto al baseline)
-- Larghezza di banda simulata (1.0 a 10.0 Mbps)
-- Affidabilità del client (probabilità di successo 0.7-1.0)
-- Tempi di computazione e trasmissione realistici
+- Variable computational power (0.5x to 2.0x compared to baseline)  
+- Simulated bandwidth (1.0 to 10.0 Mbps)  
+- Client reliability (success probability 0.7–1.0)  
+- Realistic computation and transmission times  
 
-### Architettura di Comunicazione
+### Communication Architecture
 
 ```
 [Server FL] ←→ [Client 1] [Client 2] [Client 3] [Client 4]
      ↑
-[Aggregatore] + [Policy Selection] + [FL Algorithm]
+[Aggregator] + [Policy Selection] + [FL Algorithm]
 ```
 
-Il sistema utilizza comunicazione bidirezionale asincrona basata su WebSocket, permettendo:
+The system uses asynchronous bidirectional communication based on WebSocket, allowing:
 
-- Connessioni persistenti tra server e client
-- Invio asincrono di modelli e metriche
-- Gestione robusta di disconnessioni e timeout
-- Distribuzione universale dei modelli aggiornati
+- Persistent connections between server and clients  
+- Asynchronous sending of models and metrics  
+- Robust handling of disconnections and timeouts  
+- Universal distribution of updated models  
 
 ---
 
-## Simulazione delle Risorse Client
+## Client Resource Simulation
 
-### Classe ClientResources
+### ClientResources Class
 
-La simulazione delle risorse è implementata attraverso la classe ClientResources che modella tre aspetti fondamentali:
+The resource simulation is implemented through the `ClientResources` class that models three fundamental aspects:
 
-**Compute Power (Potenza Computazionale)**
-Rappresenta la capacità di calcolo del client relativa a un dispositivo baseline:
+**Compute Power**  
+Represents the client’s computing capacity relative to a baseline device:
 
-- 0.5: Dispositivi IoT con hardware molto limitato (training 2x più lento)
-- 0.8: Smartphone/Tablet con capacità moderate (training 25% più lento)
-- 1.0: Desktop standard utilizzato come baseline
-- 1.5: Workstation ad alte prestazioni (training 50% più veloce)
-- 2.0: Server/GPU dedicati (training 2x più veloce)
+- 0.5: IoT devices with very limited hardware (2x slower training)  
+- 0.8: Smartphones/Tablets with moderate capacity (25% slower training)  
+- 1.0: Standard desktop used as baseline  
+- 1.5: High-performance workstation (50% faster training)  
+- 2.0: Dedicated Server/GPU (2x faster training)  
 
-**Bandwidth (Larghezza di Banda)**
-Velocità di connessione di rete del client in Megabit per secondo:
+**Bandwidth**  
+Client’s network connection speed in Megabits per second:
 
-- 1.0-2.0 Mbps: Connessioni lente (2G/3G, WiFi debole)
-- 3.0-5.0 Mbps: Connessioni moderate (4G, WiFi domestico)
-- 6.0-8.0 Mbps: Connessioni veloci (4G+, Fibra standard)
-- 9.0-10.0 Mbps: Connessioni ottimali (5G, Fibra ad alta velocità)
+- 1.0–2.0 Mbps: Slow connections (2G/3G, weak WiFi)  
+- 3.0–5.0 Mbps: Moderate connections (4G, home WiFi)  
+- 6.0–8.0 Mbps: Fast connections (4G+, standard fiber)  
+- 9.0–10.0 Mbps: Optimal connections (5G, high-speed fiber)  
 
-**Reliability (Affidabilità)**
-Probabilità che il client completi con successo un round di training:
+**Reliability**  
+Probability that the client successfully completes a training round:
 
-- 0.7-0.8: Client instabili con frequenti disconnessioni
-- 0.85-0.9: Client moderatamente affidabili
-- 0.95-1.0: Client altamente stabili e affidabili
+- 0.7–0.8: Unstable clients with frequent disconnections  
+- 0.85–0.9: Moderately reliable clients  
+- 0.95–1.0: Highly stable and reliable clients  
 
-### Simulazione Realistica
+### Realistic Simulation
 
-Il sistema introduce variabilità stocastica per simulare condizioni reali:
+The system introduces stochastic variability to simulate real conditions:
 
 ```
-Tempo_Computazione = (Tempo_Base / Compute_Power) * Variazione_Casuale(0.9, 1.1)
-Tempo_Trasmissione = (Dimensione_Dati_MB / Bandwidth) * Jitter_Rete(0.8, 1.2)
+Computation_Time = (Base_Time / Compute_Power) * Random_Variation(0.9, 1.1)
+Transmission_Time = (Data_Size_MB / Bandwidth) * Network_Jitter(0.8, 1.2)
 ```
 
-Questa implementazione permette di testare il comportamento del sistema sotto condizioni di rete variabili e con client dalle prestazioni eterogenee.
+This implementation allows testing system behavior under variable network conditions and heterogeneous client performance.  
 
 ---
 
-## Politiche di Aggregazione
+## Aggregation Policies
 
-### Politiche Implementate
+### Implemented Policies
 
-**UniformAggregation (FedAvg Classico)**
-Implementa l'aggregazione federata standard dove tutti i client contribuiscono equamente:
+**UniformAggregation (Classic FedAvg)**  
+Implements standard federated aggregation where all clients contribute equally:
 
-- Peso uniforme per tutti i partecipanti
-- Equivalente al FedAvg originale
-- Adatto per scenari con client omogenei
+- Uniform weight for all participants  
+- Equivalent to the original FedAvg  
+- Suitable for homogeneous client scenarios  
 
-**PowerAwareAggregation**
-Favorisce client con maggiore potenza computazionale:
+**PowerAwareAggregation**  
+Favors clients with greater computational power:
 
-- Pesi proporzionali alla capacità di calcolo
-- Migliora la convergenza in scenari eterogenei
-- Riduce l'impatto di client lenti
+- Weights proportional to computing capacity  
+- Improves convergence in heterogeneous scenarios  
+- Reduces the impact of slow clients  
 
-**ReliabilityAwareAggregation**
-Considera l'affidabilità storica dei client:
+**ReliabilityAwareAggregation**  
+Considers historical client reliability:
 
-- Maggiore peso ai client più stabili
-- Riduce l'impatto di client intermittenti
-- Migliora la robustezza del training
+- Higher weight for more stable clients  
+- Reduces impact of intermittent clients  
+- Improves robustness of training  
 
-**BandwidthAwareAggregation**
-Ottimizza per le condizioni di rete:
+**BandwidthAwareAggregation**  
+Optimizes for network conditions:
 
-- Considera la larghezza di banda disponibile
-- Filtra client con connessioni inadeguate
-- Soglia minima configurabile (default 3.0 Mbps)
+- Considers available bandwidth  
+- Filters out clients with inadequate connections  
+- Minimum threshold configurable (default 3.0 Mbps)  
 
-**HybridAggregation**
-Combina multiple metriche per la selezione ottimale:
+**HybridAggregation**  
+Combines multiple metrics for optimal selection:
 
-- Algoritmo composito che bilancia potenza, affidabilità e bandwidth
-- Selezione adattiva basata su score combinato
-- Massima flessibilità per scenari complessi
+- Composite algorithm balancing power, reliability, and bandwidth  
+- Adaptive selection based on combined score  
+- Maximum flexibility for complex scenarios  
 
-### Aggregazione Parziale
+### Partial Aggregation
 
-Il sistema supporta l'aggregazione anche quando non tutti i client rispondono:
+The system supports aggregation even when not all clients respond:
 
-- Soglia minima configurabile tramite `min_clients_for_aggregation`
-- Distribuzione universale del modello aggiornato a tutti i client registrati
-- Gestione automatica dei timeout per evitare blocchi indefiniti
-- Fallback a strategie alternative quando insufficienti client rispondono
+- Minimum threshold configurable via `min_clients_for_aggregation`  
+- Universal distribution of updated model to all registered clients  
+- Automatic timeout handling to avoid indefinite blocking  
+- Fallback to alternative strategies when too few clients respond  
 
 ---
 
-## Algoritmi di Federated Learning
+## Federated Learning Algorithms
 
-### Algoritmi Supportati
+### Supported Algorithms
 
-**FedAvg (Federated Averaging)**
-L'algoritmo fondamentale del federated learning:
+**FedAvg (Federated Averaging)**  
+The fundamental algorithm of federated learning:
 
-- Media pesata dei parametri del modello
-- Implementazione ottimizzata per reti neurali profonde
-- Baseline per confronti di performance
+- Weighted average of model parameters  
+- Optimized implementation for deep neural networks  
+- Baseline for performance comparisons  
 
-**FedProx (Federated Proximal)**
-Estensione robusta di FedAvg con termine prossimale:
+**FedProx (Federated Proximal)**  
+Robust extension of FedAvg with proximal term:
 
-- Aggiunge regolarizzazione per gestire l'eterogeneità dei dati
-- Parametro `proximal_term` configurabile (default: 0.01)
-- Migliore convergenza in scenari non-IID
+- Adds regularization to handle data heterogeneity  
+- Configurable `proximal_term` parameter (default: 0.01)  
+- Better convergence in non-IID scenarios  
 
-**FedYogi**
-Ottimizzazione adattiva con controllo del momentum:
+**FedYogi**  
+Adaptive optimization with momentum control:
 
-- Algoritmo di ottimizzazione server-side adattivo
-- Parametri configurabili: `beta1`, `beta2`, `eta`, `tau`
-- Convergenza accelerata e stabilità migliorata
+- Adaptive server-side optimization algorithm  
+- Configurable parameters: `beta1`, `beta2`, `eta`, `tau`  
+- Accelerated convergence and improved stability  
 
-**FedAdam**
-Variante federata dell'ottimizzatore Adam:
+**FedAdam**  
+Federated variant of the Adam optimizer:
 
-- Adatta l'algoritmo Adam al contesto federato
-- Stessi parametri di FedYogi con implementazione diversa
-- Efficace per modelli con molti parametri
+- Adapts Adam to the federated context  
+- Same parameters as FedYogi with different implementation  
+- Effective for models with many parameters  
 
-### Configurazione degli Algoritmi
+### Algorithm Configuration
 
-Gli algoritmi sono configurati nel file `cfg/config.json`:
+Algorithms are configured in the `cfg/config.json` file:
 
 ```json
 {
@@ -204,20 +206,20 @@ Gli algoritmi sono configurati nel file `cfg/config.json`:
 
 ---
 
-## Sistemi di Testing
+## Testing Systems
 
-### Sistema Principale (start_server.py + start_clients.py)
+### Main System (start_server.py + start_clients.py)
 
-Architettura basata su processi separati per massimo controllo:
+Architecture based on separate processes for maximum control:
 
-**Caratteristiche:**
+**Features:**
 
-- Controllo granulare di server e client
-- Sistema moderno e flessibile
-- Supporto per tutte le politiche di aggregazione
-- Simulazione risorse avanzata configurabile
+- Granular control of server and clients  
+- Modern and flexible system  
+- Support for all aggregation policies  
+- Advanced configurable resource simulation  
 
-**Utilizzo:**
+**Usage:**
 
 ```bash
 # Terminal 1: Server
@@ -227,90 +229,90 @@ Architettura basata su processi separati per massimo controllo:
 ./venv/Scripts/python.exe start_clients.py --mode resource --policy power
 ```
 
-#### Sistema Principale - Web App version
-È stata sviluppata una **Web Application basata su Gradio** che permette di modificare facilmente il file di configurazione e visualizzare i risultati sia del server che dei client, senza dover utilizzare il terminale. L’interfaccia, infatti, è **user-friendly** e offre diverse modalità di visualizzazione.
+#### Main System - Web App version  
+A **Web Application based on Gradio** has been developed to easily modify the configuration file and view results of both server and clients, without using the terminal. The interface is **user-friendly** and offers multiple visualization modes.
 
-Per avviare l’applicazione è sufficiente eseguire il file `gradio_app.py`.  
-Le sezioni disponibili sono:
+To launch the application, simply run the `gradio_app.py` file.  
+The available sections are:
 
-- **Configurazione**: consente di modificare in modo semplice il file `config.json`, facilitando la sperimentazione con diversi modelli, client e parametri di training.
-- **Avvio Server/Client**: permette di avviare il server e i client, oltre a selezionare la tipologia di aggregazione dei risultati.
-- **Log & Output**: mostra l’output del terminale di server e client, con la possibilità di aggiornare lo stato tramite un apposito tasto.
-- **Metriche**: presenta in formato tabellare le metriche di tutti i client per round, con un pulsante dedicato per aggiornarne i valori nel tempo.
-- **Dashboard**: fornisce una visualizzazione grafica, oltre a quella tabellare, per monitorare l’andamento delle metriche round dopo round.
-- **Server Training Metrics**: mostra le metriche aggregate dal server sia in formato tabellare che grafico, con un apposito tasto per l’aggiornamento dei dati.
+- **Configurazione**: easily modify `config.json`, enabling experimentation with different models, clients, and training parameters.  
+- ** Avvio Server/Client**: start the server and clients, and select the aggregation type.  
+- **Log & Output**: shows server and client terminal output, with a refresh button.  
+- **Metriche**: displays client metrics per round in a table, with update functionality.  
+- **Dashboard**: provides graphical and tabular visualization to monitor metric progress round by round.  
+- **Server Training Metrics**: shows aggregated server metrics both in table and chart form, with a refresh button.  
 
-### Sistema Automatico Policy Testing
+### Automatic Policy Testing System
 
-Sistema per testing automatico di multiple politiche di aggregazione:
+System for automatic testing of multiple aggregation policies:
 
-**Caratteristiche:**
+**Features:**
 
-- Automazione completa con server e client integrati
-- Testing batch di tutte le politiche disponibili
-- Simulazione risorse diversificate per ogni client
-- Confronto sistematico tra approcci di aggregazione
+- Fully automated with integrated server and clients  
+- Batch testing of all available policies  
+- Diversified resource simulation per client  
+- Systematic comparison of aggregation approaches  
 
-**Utilizzo:**
+**Usage:**
 
 ```bash
-# Test policy specifica
+# Test specific policy
 ./venv/Scripts/python.exe run_multiple_clients_with_parameters.py --policy power
 
-# Test tutte le policy
+# Test all policies
 ./venv/Scripts/python.exe run_multiple_clients_with_parameters.py --policy all
 ```
 
-### Sistema Framework Comparison
+### Framework Comparison System
 
-Sistema di confronto automatico tra framework custom e FLOWER:
+Automatic comparison system between custom framework and FLOWER:
 
-**Caratteristiche:**
+**Features:**
 
-- Confronto sistematico delle performance
-- Output organizzato in struttura modulare
-- Report dettagliati con metriche comparative
-- Testing di configurazioni multiple automatico
+- Systematic performance comparison  
+- Modular structured output  
+- Detailed reports with comparative metrics  
+- Automatic testing of multiple configurations  
 
-**Utilizzo:**
+**Usage:**
 
 ```bash
-# Test rapido
+# Quick test
 echo "1" | ./venv/Scripts/python.exe testing_frameworkcustom_vs_FLOWER.py
 
-# Test completo
+# Complete test
 echo "2" | ./venv/Scripts/python.exe testing_frameworkcustom_vs_FLOWER.py
 ```
 
-### Sistema Client Legacy
+### Legacy Client System
 
-Sistema semplificato per client automatici con server esterno:
+Simplified system for automatic clients with external server:
 
-**Caratteristiche:**
+**Features:**
 
-- Client automatici per server già avviato
-- Compatibilità con implementazioni precedenti
-- Setup semplice per testing rapidi
+- Automatic clients for already running server  
+- Compatibility with previous implementations  
+- Simple setup for quick testing  
 
-**Utilizzo:**
+**Usage:**
 
 ```bash
-# Prima avvia server manualmente
+# First start server manually
 ./venv/Scripts/python.exe start_server.py --policy uniform
 
-# Poi client automatici
+# Then automatic clients
 ./venv/Scripts/python.exe run_multiple_clients.py
 ```
 
 ---
 
-## Configurazione del Sistema
+## System Configuration
 
-### File di Configurazione Principale
+### Main Configuration File
 
-Il file `cfg/config.json` controlla tutti gli aspetti del sistema:
+The `cfg/config.json` file controls all aspects of the system:
 
-**Connettività:**
+**Connectivity:**
 
 ```json
 {
@@ -319,7 +321,7 @@ Il file `cfg/config.json` controlla tutti gli aspetti del sistema:
 }
 ```
 
-**Parametri di Training:**
+**Training Parameters:**
 
 ```json
 {
@@ -331,7 +333,7 @@ Il file `cfg/config.json` controlla tutti gli aspetti del sistema:
 }
 ```
 
-**Aggregazione Parziale:**
+**Partial Aggregation:**
 
 ```json
 {
@@ -341,7 +343,7 @@ Il file `cfg/config.json` controlla tutti gli aspetti del sistema:
 }
 ```
 
-**Algoritmo FL:**
+**FL Algorithm:**
 
 ```json
 {
@@ -354,57 +356,57 @@ Il file `cfg/config.json` controlla tutti gli aspetti del sistema:
 }
 ```
 
-### Struttura delle Directory
+### Directory Structure
 
-**Output del Framework Comparison:**
+**Framework Comparison Output:**
 
 ```
 framework_comparison_outputs/
-├── results/     # File CSV con metriche dettagliate
-├── logs/        # Log di esecuzione completi
-└── summaries/   # Report riassuntivi comparativi
+├── results/     # CSV files with detailed metrics
+├── logs/        # Full execution logs
+└── summaries/   # Comparative summary reports
 ```
 
-**Log del Sistema:**
+**System Logs:**
 
 ```
 logs/
 └── MMDD/
-    ├── FL-Server-LOG/  # Log del server
-    └── FL-Client-LOG/  # Log dei client
+    ├── FL-Server-LOG/  # Server logs
+    └── FL-Client-LOG/  # Client logs
 ```
 
-**Risultati CSV:**
+**CSV Results:**
 
 ```
 csv/
-└── MMDD/              # Metriche di training per data
+└── MMDD/              # Training metrics by date
 ```
 
 ---
 
-## Monitoraggio e Debugging
+## Monitoring and Debugging
 
-### Sistema di Logging
+### Logging System
 
-Il sistema implementa logging strutturato multi-livello:
+The system implements structured multi-level logging:
 
-- **Server Logs**: Decisioni di aggregazione, selezione client, metriche globali
-- **Client Logs**: Training locale, risorse utilizzate, comunicazione
-- **Framework Logs**: Confronti di performance, errori di sistema
+- **Server Logs**: Aggregation decisions, client selection, global metrics  
+- **Client Logs**: Local training, used resources, communication  
+- **Framework Logs**: Performance comparisons, system errors  
 
-### Metriche Monitorate
+### Monitored Metrics
 
-**Metriche di Training:**
+**Training Metrics:**
 
-- Loss di training e validazione per round
-- Accuracy, Precision, Recall, F1-Score
-- Tempo di convergenza
-- Numero di client partecipanti per round
+- Training and validation loss per round  
+- Accuracy, Precision, Recall, F1-Score  
+- Convergence time  
+- Number of participating clients per round  
 
-**Metriche di Sistema:**
+**System Metrics:**
 
-- Utilizzo delle risorse simulate
-- Tempi di comunicazione e computazione
-- Tasso di successo dei client
-- Distribuzione dei pesi di aggregazione
+- Usage of simulated resources  
+- Communication and computation times  
+- Client success rate  
+- Distribution of aggregation weights  
