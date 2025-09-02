@@ -581,14 +581,21 @@ class FederatedServer(object):
         try:
             # Only use policy weights if we have resource information for all clients
             if all(client_id in self.client_resources_detailed for client_id in client_ids):
+                # Create client_data_sizes dict for proper FedAvg weighting
+                client_data_sizes = {
+                    client_id: update['train_size'] 
+                    for client_id, update in zip(client_ids, self.current_round_client_updates)
+                }
+                
                 aggregation_weights = self.aggregation_policy.compute_weights(
                     client_ids, 
-                    self.client_resources_detailed
+                    self.client_resources_detailed,
+                    client_data_sizes  # Now passing the data sizes for correct weighting
                 )
                 # Convert to list format for aggregator
                 policy_weights = [aggregation_weights.get(client_id, 1.0) for client_id in client_ids]
                 
-                self.logger.info(f"Using aggregation policy weights: {dict(zip(client_ids, policy_weights))}")
+                self.logger.info(f"Using aggregation policy weights (with data sizes): {dict(zip(client_ids, policy_weights))}")
                 
                 # Use policy weights instead of train sizes
                 self.aggregator.update_weights_weighted(
