@@ -236,7 +236,7 @@ To launch the application, simply run the `gradio_app.py` file.
 The available sections are:
 
 - **Configurazione**: easily modify `config.json`, enabling experimentation with different models, clients, and training parameters.  
-- ** Avvio Server/Client**: start the server and clients, and select the aggregation type.  
+- **Avvio Server/Client**: start the server and clients, and select the aggregation type.  
 - **Log & Output**: shows server and client terminal output, with a refresh button.  
 - **Metriche**: displays client metrics per round in a table, with update functionality.  
 - **Dashboard**: provides graphical and tabular visualization to monitor metric progress round by round.  
